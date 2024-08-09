@@ -1,0 +1,151 @@
+---
+title: "승훈 쌤과 함께하는 즐거운 통사 시간"
+format: 
+  dashboard:
+    logo: img/snu_ui_download.png
+    nav-buttons: 
+      - icon: house-door-fill
+        href: github.com/rottingpotato
+        aria-label: GitHub
+      - icon: envelope
+        href: mailto:rottingpotato@snu.ac.kr
+        aria-label: Mail
+    scrolling: true
+theme: default
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+# Intro
+
+## Row {height="20%"}
+
+::: {.card title="학습목표"}
+- 다양한 행복의 기준을 비교하고 평가할 수 있다.
+- 통합적인 관점에서 행복한 삶이 무엇인지 설명할 수 있다.
+:::
+
+## Row {.tabset height="80%"}
+
+### GDP
+
+#### 지도
+
+```{r}
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(ggrepel)
+library(showtext)
+library(scales)
+library(leaflet)
+library(maps)
+
+font_add_google("Noto Sans KR", "notosans")
+showtext_auto()
+
+new_names <- c("국가명", "행복지수", "최대값", "최소값", "1인당 GDP", "사회적 지원", "건강기대수명", "삶을 선택할 자유", "관대함", "부패인식", "암울한 사회와 잔차")
+
+data_file_path <- "/Users/seunghun/Desktop/Final Project/data2024.xls"
+
+data2024 <- read_excel(
+  data_file_path,
+  sheet = "Sheet1",
+  skip = 1,
+  col_names = new_names
+)
+
+data2024$`1인당 GDP` <- as.numeric(data2024$`1인당 GDP`)
+
+# 상위 10개국과 하위 10개국 선택
+top_bottom_countries <- data2024 %>%
+  arrange(desc(행복지수)) %>%
+  slice(c(1:10, (n()-9):n())) %>%
+  mutate(그룹 = ifelse(row_number() <= 10, "상위 10개국", "하위 10개국"))
+
+# 위도와 경도 정보 추가
+world_map <- map_data("world")
+country_coords <- world_map %>% 
+  group_by(region) %>% 
+  summarise(longitude = mean(long), latitude = mean(lat))
+
+# 국가명 매칭을 위한 함수
+match_country <- function(name) {
+  matched <- country_coords$region[which.min(adist(name, country_coords$region))]
+  return(matched)
+}
+
+top_bottom_countries <- top_bottom_countries %>%
+  mutate(matched_name = sapply(국가명, match_country)) %>%
+  left_join(country_coords, by = c("matched_name" = "region"))
+
+# 지도 생성
+m <- leaflet(top_bottom_countries %>% filter(!is.na(longitude) & !is.na(latitude))) %>%
+  addTiles() %>%
+  addCircleMarkers(
+    lng = ~longitude, lat = ~latitude,
+    radius = ~행복지수 * 2,
+    color = ~ifelse(그룹 == "상위 10개국", "blue", "red"),
+    fillOpacity = 0.7,
+    popup = ~paste("<strong>", 국가명, "</strong><br>",
+                   "행복지수: ", round(행복지수, 2), "<br>",
+                   "1인당 GDP: ", round(`1인당 GDP`, 2))
+  )
+
+# 지도 출력
+m
+```
+
+
+
+#### 그래프
+
+```{r results='hide'}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(ggrepel)
+library(showtext)
+library(scales)
+font_add_google("Noto Sans KR", "notosans")
+showtext_auto()
+new_names <- c("국가명", "행복지수", "최대값", "최소값", "1인당 GDP", "사회적 지원", "건강기대수명", "삶을 선택할 자유", "관대함", "부패인식", "암울한 사회와 잔차")
+data_file_path <- "/Users/seunghun/Desktop/Final Project/data2024.xls"
+data2024 <- read_excel(
+  data_file_path,
+  sheet = "Sheet1",
+  skip = 1,
+  col_names = new_names
+)
+data2024$`1인당 GDP` <- as.numeric(data2024$`1인당 GDP`)
+# 상위 10개국과 하위 10개국 선택
+top_bottom_countries <- data2024 %>%
+  arrange(desc(행복지수)) %>%
+  slice(c(1:10, (n()-9):n()))
+# 상위 10개국과 하위 10개국을 구분하는 변수 추가
+top_bottom_countries <- top_bottom_countries %>%
+  mutate(그룹 = ifelse(row_number() <= 10, "상위 10개국", "하위 10개국"))
+number_format <- number_format(accuracy = 0.01, decimal.mark = ".")
+ggplot(top_bottom_countries, aes(x = `1인당 GDP`, y = 행복지수, color = 그룹)) +
+  geom_point(size = 4) +
+  geom_smooth(method = "lm", color = "grey", se = FALSE, linetype = "dashed") +
+  geom_text_repel(aes(label = 국가명), size = 3, box.padding = 0.5, point.padding = 0.5) +
+  labs(title = "상위 10개국과 하위 10개국의 행복지수와 1인당 GDP 관계",
+       subtitle = "World Happiness Report 2024",
+       x = "1인당 GDP",
+       y = "행복지수") +
+  theme_minimal() +
+  theme(
+    text = element_text(family = "notosans"),
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(face = "italic", size = 12),
+    axis.title = element_text(face = "bold"),
+    legend.position = "bottom",
+    legend.title = element_blank()
+  ) +
+  scale_color_manual(values = c("상위 10개국" = "blue", "하위 10개국" = "red")) +
+  scale_x_continuous(labels = number_format) +
+  scale_y_continuous(labels = number_format)
+```
+
